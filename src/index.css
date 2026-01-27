@@ -175,7 +175,7 @@ select:hover, select:focus {
 }
 
 button.primary {
-  padding: 14px;
+  padding: 7px;
   background: var(--accent-color);
   color: white;
   border: none;
@@ -187,8 +187,7 @@ button.primary {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 4px;
 }
 
 button.primary:hover:not(:disabled) {

@@ -133,6 +133,77 @@ function MapViewSetter({ facilities }) {
   }, [facilities, map]);
   return null;
 }
+const buildPopupHtml = (f) => {
+  const name = f?.properties?.name || '';
+  const type = f?.properties?.type || '';
+  const area = f?.properties?.area || '';
+  const address = f?.properties?.address || '';
+
+  // Choose coordinates for Google Maps link
+  let lat = null, lon = null;
+
+  if (f?.geometry?.type === "Point") {
+    [lon, lat] = f.geometry.coordinates;
+  } else if (f?.geometry?.type === "Polygon") {
+    [lon, lat] = f.geometry.coordinates?.[0]?.[0] || [];
+  } else if (f?.geometry?.type === "MultiPolygon") {
+    [lon, lat] = f.geometry.coordinates?.[0]?.[0]?.[0] || [];
+  }
+
+  const gmaps =
+    (lat != null && lon != null)
+      ? `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`
+      : null;
+
+  // This HTML is styled like your marker popup
+  return renderToStaticMarkup(
+    <div style={{ padding: '16px', minWidth: '220px' }}>
+      <header style={{ marginBottom: 12 }}>
+        <h3 style={{ margin: 0, fontSize: '1rem', color: 'white', lineHeight: 1.2 }}>
+          {name}
+        </h3>
+      </header>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.75)' }}>
+          <span style={{ fontWeight: 700, color: 'white' }}>{type}</span>
+        </div>
+
+        <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)' }}>
+          {area}
+        </div>
+
+        {address && (
+          <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)' }}>
+            {address}
+          </div>
+        )}
+      </div>
+
+      {gmaps && (
+        <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+          <a
+            href={gmaps}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: '0.75rem',
+              color: 'var(--accent-color)',
+              textDecoration: 'none',
+              fontWeight: 700
+            }}
+          >
+            View on Google Maps ↗
+          </a>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 function App() {
   const { fetchData, loading } = useApi();
@@ -329,9 +400,9 @@ function App() {
               <div className="input-group">
                 <label>Facility Types</label>
                 <div style={{
-                  maxHeight: '200px',
+                  maxHeight: '170px',
                   overflowY: 'auto',
-                  padding: '12px',
+                  padding: '8px',
                   border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: '8px',
                   background: 'rgba(0,0,0,0.2)'
@@ -352,7 +423,7 @@ function App() {
                         disabled={loading}
                         style={{ accentColor: 'var(--accent-color)', width: '16px', height: '16px' }}
                       />
-                      <span>{type.name} <span style={{ opacity: 0.5, fontSize: '0.8em' }}>({type.facilityCount})</span></span>
+                      <span>{type.name}</span>
                     </label>
                   ))}
                   {types.length === 0 && <div style={{ opacity: 0.5, fontStyle: 'italic' }}>Loading types...</div>}
@@ -373,7 +444,6 @@ function App() {
                 onClick={handleNearMe}
                 disabled={loading}
                 style={{
-                  marginTop: '8px',
                   background: nearMeActive ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : undefined
                 }}
               >
@@ -406,16 +476,20 @@ function App() {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <BarChart3 size={16} /> Area Insights
                 </label>
-                <div className="stats-grid">
-                  <div className="stat-card">
-                    <span className="stat-value">{stats.total}</span>
-                    <span className="stat-label">Total Facilities</span>
-                  </div>
-                  <div className="stat-card">
-                    <span className="stat-value">{stats.byType.length}</span>
-                    <span className="stat-label">Categories</span>
-                  </div>
-                </div>
+               <div style={{
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 12,
+  padding: '10px 12px',
+  borderRadius: 12,
+  border: '1px solid var(--border-color)',
+  background: 'rgba(0,0,0,0.2)',
+  fontSize: '0.85rem'
+}}>
+  <span><b>{stats.total}</b> facilities</span>
+  <span><b>{stats.byType.length}</b> categories</span>
+</div>
+
               </section>
             )}
 
@@ -557,93 +631,108 @@ function App() {
 
           <MapViewSetter facilities={filteredFacilities} />
 
-          {/* Markers */}
-          {filteredFacilities.map((f, i) => {
-            const isPolygon = f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon');
-            const config = FACILITY_CONFIG[f.properties.type] || { color: '#3388ff' };
+         {/* Map Layers */}
+{filteredFacilities.map((f, i) => {
+  const geom = f?.geometry;
+  if (!geom) return null;
 
-            if (isPolygon) {
-              return (
-                <GeoJSON
-                  key={`${f.properties.uri}-poly-${i}`}
-                  data={f.geometry}
-                  style={{
-                    color: config.color,
-                    weight: 2,
-                    opacity: 0.8,
-                    fillColor: config.color,
-                    fillOpacity: 0.2
-                  }}
-                  onEachFeature={(feature, layer) => {
-                    const content = renderToStaticMarkup(
-                      <div className="p-2">
-                        <h3 style={{ margin: '0 0 5px 0', fontSize: '1rem' }}>{f.properties.name}</h3>
-                        <div style={{ fontSize: '0.85rem', color: '#666' }}>{f.properties.type}</div>
-                      </div>
-                    );
-                    layer.bindPopup(content);
-                  }}
-                />
-              );
-            }
+  const type = f?.properties?.type || '';
+  const isPark = type === 'Park';
 
-            // Marker fallback
-            if (!f.geometry.coordinates || f.geometry.coordinates.length < 2) return null;
+  const isPolygon = geom.type === 'Polygon' || geom.type === 'MultiPolygon';
+  const isPoint =
+    geom.type === 'Point' &&
+    Array.isArray(geom.coordinates) &&
+    geom.coordinates.length >= 2;
 
-            return (
-              <Marker
-                key={`${f.properties.uri}-${i}`}
-                position={[f.geometry.coordinates[1], f.geometry.coordinates[0]]}
-                icon={getIconForType(f.properties.type)}
-              >
-                <Popup>
-                  <div style={{ padding: '16px', minWidth: '220px' }} className="animate-fade-in">
-                    <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <h3 style={{ margin: 0, fontSize: '1rem', color: 'white', lineHeight: 1.2 }}>{f.properties.name}</h3>
-                    </header>
+  const config = FACILITY_CONFIG[type] || { color: '#3388ff' };
 
-                    <div className="flex-column" style={{ gap: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        <Trees size={14} className="text-accent" />
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{f.properties.type}</span>
-                      </div>
+  // ✅ Parks: boundary ONLY (no marker)
+  if (isPark) {
+    if (!isPolygon) return null;
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        <Building2 size={14} />
-                        <span>{f.properties.area}</span>
-                      </div>
+    return (
+      <GeoJSON
+        key={`${f.properties.uri}-park-${i}`}
+        data={geom}
+        style={{
+          color: config.color,
+          weight: 2,
+          opacity: 0.9,
+          fillColor: config.color,
+          fillOpacity: 0.2
+        }}
+        onEachFeature={(feature, layer) => {
+          const html = buildPopupHtml(f);
+          layer.bindPopup(html, { className: 'dcc-popup' });
+        }}
+      />
+    );
+  }
 
-                      {f.properties.address && (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                          <Navigation size={14} style={{ flexShrink: 0 }} />
-                          <span>{f.properties.address}</span>
-                        </div>
-                      )}
-                    </div>
+  // ✅ Non-parks: markers only (ignore polygons to keep map clean)
+  if (!isPoint) return null;
 
-                    <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8 }}>
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${f.geometry.coordinates[1]},${f.geometry.coordinates[0]}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          fontSize: '0.75rem',
-                          color: 'var(--accent-color)',
-                          textDecoration: 'none',
-                          fontWeight: 600
-                        }}
-                      >
-                        View on Google Maps <ExternalLink size={12} />
-                      </a>
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            )
-          })}
+  const [lon, lat] = geom.coordinates;
+
+  return (
+    <Marker
+      key={`${f.properties.uri}-${i}`}
+      position={[lat, lon]}
+      icon={getIconForType(type)}
+    >
+      <Popup>
+        <div style={{ padding: '16px', minWidth: '220px' }} className="animate-fade-in">
+          <header style={{ marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: '1rem', color: 'white', lineHeight: 1.2 }}>
+              {f.properties.name}
+            </h3>
+          </header>
+
+          <div className="flex-column" style={{ gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <Trees size={14} className="text-accent" />
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{type}</span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              <Building2 size={14} />
+              <span>{f.properties.area}</span>
+            </div>
+
+            {f.properties.address && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                <Navigation size={14} style={{ flexShrink: 0 }} />
+                <span>{f.properties.address}</span>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${lat},${lon}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: '0.75rem',
+                color: 'var(--accent-color)',
+                textDecoration: 'none',
+                fontWeight: 700
+              }}
+            >
+              View on Google Maps <ExternalLink size={12} />
+            </a>
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  );
+})}
+
+
         </MapContainer>
 
         {/* Floating Status Indicator */}
