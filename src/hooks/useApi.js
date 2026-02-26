@@ -7,6 +7,8 @@ export const useApi = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const [debugInfo, setDebugInfo] = useState(null);
+
   const fetchData = useCallback(async (endpoint, params = {}) => {
     setLoading(true);
     setError(null);
@@ -26,6 +28,21 @@ export const useApi = () => {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       const data = await response.json();
+
+      // Extract debug info if present
+      if (data.debug) {
+        setDebugInfo(data.debug);
+      }
+
+      // Handle wrapped responses (for areas/types which were arrays but now objects)
+      if (data.results && Array.isArray(data.results)) {
+        // Attach debug info to the array so it can be accessed by the caller
+        if (data.debug) {
+          data.results.debug = data.debug;
+        }
+        return data.results;
+      }
+
       return data;
     } catch (err) {
       setError(err.message);
@@ -36,5 +53,5 @@ export const useApi = () => {
     }
   }, []);
 
-  return { fetchData, loading, error };
+  return { fetchData, loading, error, debugInfo };
 };
