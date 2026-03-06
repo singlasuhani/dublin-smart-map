@@ -307,7 +307,7 @@ function App() {
                     <div className="flex-column" style={{ flex: 1 }}>
                         <h1 className="logo-title">Dublin Facilities Explorer</h1>
                         <span className="logo-subtitle">
-                            Knowledge Graph Powered Map
+                            Knowledge Graph Map
                         </span>
                     </div>
 
